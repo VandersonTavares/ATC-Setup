@@ -4,8 +4,7 @@
       "name": "JBoss SICOP",
       "file": "files/servers/jboss-sicop.zip",
       "destination": "servers/jboss-sicop",
-      "extract": true,
-      "stripRootFolder": true
+      "enabled": true
     }
   ]
 }

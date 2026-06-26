@@ -2,6 +2,7 @@
  * ATC Setup
  *
  * Fluxo:
+ * 0 - Verificar ambiente
  * 1 - Criar estrutura de pastas
  * 2 - Clonar repositórios
  * 3 - Copiar arquivos de suporte
@@ -22,8 +23,16 @@ import AdmZip from "adm-zip";
 const PROJECT_PATH = process.cwd();
 const BASE_PATH = "C:\\atc";
 
-const REPOSITORIES_FILE = path.join(PROJECT_PATH, "config", "repositories.json");
-const SUPPORT_FILES_FILE = path.join(PROJECT_PATH, "config", "support-files.json");
+const REPOSITORIES_FILE = path.join(
+  PROJECT_PATH,
+  "config",
+  "repositories.json",
+);
+const SUPPORT_FILES_FILE = path.join(
+  PROJECT_PATH,
+  "config",
+  "support-files.json",
+);
 const JDKS_FILE = path.join(PROJECT_PATH, "config", "jdks.json");
 const INSTALLERS_FILE = path.join(PROJECT_PATH, "config", "installers.json");
 const SERVERS_FILE = path.join(PROJECT_PATH, "config", "servers.json");
@@ -39,6 +48,28 @@ const folders = [
 /**********************************************************************
  * Funções utilitárias
  **********************************************************************/
+async function loading(text, seconds = 3) {
+  const frames = ["|", "/", "-", "\\"];
+  const interval = 150;
+
+  return new Promise((resolve) => {
+    let frame = 0;
+
+    process.stdout.write(`${frames[0]} ${text}`);
+
+    const timer = setInterval(() => {
+      process.stdout.write(
+        `\r${frames[frame++ % frames.length]} ${text}`
+      );
+    }, interval);
+
+    setTimeout(() => {
+      clearInterval(timer);
+      process.stdout.write(`\r✅ ${text}\n`);
+      resolve();
+    }, seconds * 1000);
+  });
+}
 
 async function pathExists(targetPath) {
   try {
@@ -56,6 +87,105 @@ async function readJson(filePath, fallback) {
 
   const file = await fs.readFile(filePath, "utf8");
   return JSON.parse(file);
+}
+
+async function commandExists(command, args) {
+  try {
+    await execa(command, args, { stdio: "ignore" });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**********************************************************************
+ * Etapa 0 - Verificar ambiente
+ **********************************************************************/
+
+function isSshRepository(url) {
+  return typeof url === "string" && url.startsWith("git@");
+}
+
+async function checkNode() {
+  console.log(`✅ Node.js encontrado: ${process.version}`);
+}
+
+async function checkNpm() {
+  const exists = await commandExists("npm", ["--version"]);
+
+  if (!exists) {
+    throw new Error(
+      "npm não encontrado. Instale o Node.js com npm antes de continuar.",
+    );
+  }
+
+  console.log("✅ npm encontrado.");
+}
+
+async function checkGit() {
+  const exists = await commandExists("git", ["--version"]);
+
+  if (!exists) {
+    throw new Error("Git não encontrado. Instale o Git antes de continuar.");
+  }
+
+  console.log("✅ Git encontrado.");
+}
+
+async function checkSshIfNeeded() {
+  const data = await readJson(REPOSITORIES_FILE, { repositories: [] });
+  const hasSshRepo = data.repositories.some((repo) =>
+    isSshRepository(repo.url),
+  );
+
+  if (!hasSshRepo) {
+    console.log(
+      "ℹ️ Nenhum repositório SSH configurado. Verificação SSH ignorada.",
+    );
+    return;
+  }
+
+  const exists = await commandExists("ssh", ["-V"]);
+
+  if (!exists) {
+    throw new Error(
+      "SSH não encontrado. Instale/configure OpenSSH antes de clonar repositórios via SSH.",
+    );
+  }
+
+  console.log("✅ SSH encontrado.");
+}
+
+async function checkBasePathPermission() {
+  await fs.mkdir(BASE_PATH, { recursive: true });
+
+  const testFile = path.join(BASE_PATH, ".atc-setup-test");
+
+  await fs.writeFile(testFile, "test");
+  await fs.rm(testFile, { force: true });
+
+  console.log(`✅ Permissão de escrita em ${BASE_PATH}.`);
+}
+
+async function checkEnvironment() {
+  console.log("\n==============================");
+  console.log("VERIFICANDO AMBIENTE");
+  console.log("==============================\n");
+
+  await loading("Verificando Node.js");
+  await checkNode();
+
+  await loading("Verificando npm");
+  await checkNpm();
+
+  await loading("Verificando Git");
+  await checkGit();
+
+  await loading("Verificando SSH");
+  await checkSshIfNeeded();
+
+  await loading("Verificando permissão de escrita");
+  await checkBasePathPermission();
 }
 
 /**********************************************************************
@@ -98,7 +228,7 @@ async function cloneRepository(repo) {
   await execa(
     "git",
     ["clone", "--branch", repo.branch, repo.url, destination],
-    { stdio: "inherit" }
+    { stdio: "inherit" },
   );
 
   console.log(`✅ ${repo.name} clonado.`);
@@ -276,6 +406,9 @@ async function configureServers() {
  **********************************************************************/
 
 async function main() {
+  // Etapa 0
+  await checkEnvironment();
+
   // Etapa 1
   await createStructure();
 
