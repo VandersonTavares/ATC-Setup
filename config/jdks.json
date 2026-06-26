@@ -1,0 +1,39 @@
+{
+  "jdks": [
+    {
+      "name": "JDK 7u80",
+      "path": "files/jdks/jdk-7u80-windows-x64.exe",
+      "version": "7",
+      "enabled": true,
+      "args": ["/s"]
+    },
+    {
+      "name": "JDK 8u451",
+      "path": "files/jdks/jdk-8u451-windows-64.exe",
+      "version": "8",
+      "enabled": true,
+      "args": ["/s"]
+    },
+    {
+      "name": "JDK 8u211",
+      "path": "files/jdks/jdk-8u211-windows-64.exe",
+      "version": "8",
+      "enabled": true,
+      "args": ["/s"]
+    },
+    {
+      "name": "JDK 18.0.2.1",
+      "path": "files/jdks/jdk-18.0.2.1_windows-x64_bin.exe",
+      "version": "18",
+      "enabled": false,
+      "args": ["/s"]
+    },
+    {
+      "name": "JDK 21",
+      "path": "files/jdks/jdk-21_windows-x64_bin.exe",
+      "version": "21",
+      "enabled": false,
+      "args": ["/s"]
+    }
+  ]
+}

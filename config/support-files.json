@@ -1,0 +1,10 @@
+{
+  "files": [
+    {
+      "name": "guava-20.0.jar",
+      "source": "files/suporte/libs/guava-20.0.jar",
+      "destination": "workspace/baseline/metro-sicop/sicopApp/lib/guava-20.0.jar",
+      "action": "copy"
+    }
+  ]
+}

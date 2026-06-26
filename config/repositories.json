@@ -1,0 +1,32 @@
+{
+  "repositories": [
+    {
+      "name": "metro-sicaf",
+      "url": "",
+      "branch": "develop",
+      "destination": "workspace/baseline/metro-sicaf",
+      "enabled": true
+    },
+    {
+      "name": "metro-sicop",
+      "url": "",
+      "branch": "develop",
+      "destination": "workspace/baseline/metro-sicop",
+      "enabled": true
+    },
+    {
+      "name": "metro-invoice-service",
+      "url": "",
+      "branch": "master",
+      "destination": "workspace/baseline/metro-invoice-service",
+      "enabled": true
+    },
+    {
+      "name": "metro-sicop-frontend",
+      "url": "",
+      "branch": "develop",
+      "destination": "workspace/baseline/metro-sicop-frontend",
+      "enabled": true
+    }
+  ]
+}

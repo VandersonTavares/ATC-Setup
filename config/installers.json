@@ -1,0 +1,16 @@
+{
+  "installers": [
+    {
+      "name": "Node 16",
+      "path": "files/instaladores/node-v16.20.2-x64.msi",
+      "args": ["/s"],
+      "enabled": true
+    },
+    {
+      "name": "Outro instalador",
+      "path": "files/instaladores/outro-instalador.exe",
+      "args": [],
+      "enabled": true
+    }
+  ]
+}

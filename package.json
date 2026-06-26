@@ -1,0 +1,12 @@
+{
+  "name": "atc-setup",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js"
+  },
+  "dependencies": {
+    "adm-zip": "^0.5.16",
+    "execa": "^9.6.0"
+  }
+}
