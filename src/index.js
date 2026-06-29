@@ -23,16 +23,8 @@ import AdmZip from "adm-zip";
 const PROJECT_PATH = process.cwd();
 const BASE_PATH = "C:\\atc";
 
-const REPOSITORIES_FILE = path.join(
-  PROJECT_PATH,
-  "config",
-  "repositories.json",
-);
-const SUPPORT_FILES_FILE = path.join(
-  PROJECT_PATH,
-  "config",
-  "support-files.json",
-);
+const REPOSITORIES_FILE = path.join(PROJECT_PATH, "config", "repositories.json");
+const SUPPORT_FILES_FILE = path.join(PROJECT_PATH, "config", "support-files.json");
 const JDKS_FILE = path.join(PROJECT_PATH, "config", "jdks.json");
 const INSTALLERS_FILE = path.join(PROJECT_PATH, "config", "installers.json");
 const SERVERS_FILE = path.join(PROJECT_PATH, "config", "servers.json");
@@ -48,6 +40,7 @@ const folders = [
 /**********************************************************************
  * Funções utilitárias
  **********************************************************************/
+
 async function loading(text, seconds = 3) {
   const frames = ["|", "/", "-", "\\"];
   const interval = 150;
@@ -58,9 +51,7 @@ async function loading(text, seconds = 3) {
     process.stdout.write(`${frames[0]} ${text}`);
 
     const timer = setInterval(() => {
-      process.stdout.write(
-        `\r${frames[frame++ % frames.length]} ${text}`
-      );
+      process.stdout.write(`\r${frames[frame++ % frames.length]} ${text}`);
     }, interval);
 
     setTimeout(() => {
@@ -89,13 +80,27 @@ async function readJson(filePath, fallback) {
   return JSON.parse(file);
 }
 
-async function commandExists(command, args) {
+async function commandExists(command, args = []) {
   try {
     await execa(command, args, { stdio: "ignore" });
     return true;
   } catch {
     return false;
   }
+}
+
+async function isCheckValid(check) {
+  if (!check) return false;
+
+  if (check.type === "folder" || check.type === "file") {
+    return pathExists(check.path);
+  }
+
+  if (check.type === "command") {
+    return commandExists(check.command, check.args ?? []);
+  }
+
+  return false;
 }
 
 /**********************************************************************
@@ -106,86 +111,49 @@ function isSshRepository(url) {
   return typeof url === "string" && url.startsWith("git@");
 }
 
-async function checkNode() {
-  console.log(`✅ Node.js encontrado: ${process.version}`);
-}
-
-async function checkNpm() {
-  const exists = await commandExists("npm", ["--version"]);
-
-  if (!exists) {
-    throw new Error(
-      "npm não encontrado. Instale o Node.js com npm antes de continuar.",
-    );
-  }
-
-  console.log("✅ npm encontrado.");
-}
-
-async function checkGit() {
-  const exists = await commandExists("git", ["--version"]);
-
-  if (!exists) {
-    throw new Error("Git não encontrado. Instale o Git antes de continuar.");
-  }
-
-  console.log("✅ Git encontrado.");
-}
-
-async function checkSshIfNeeded() {
-  const data = await readJson(REPOSITORIES_FILE, { repositories: [] });
-  const hasSshRepo = data.repositories.some((repo) =>
-    isSshRepository(repo.url),
-  );
-
-  if (!hasSshRepo) {
-    console.log(
-      "ℹ️ Nenhum repositório SSH configurado. Verificação SSH ignorada.",
-    );
-    return;
-  }
-
-  const exists = await commandExists("ssh", ["-V"]);
-
-  if (!exists) {
-    throw new Error(
-      "SSH não encontrado. Instale/configure OpenSSH antes de clonar repositórios via SSH.",
-    );
-  }
-
-  console.log("✅ SSH encontrado.");
-}
-
-async function checkBasePathPermission() {
-  await fs.mkdir(BASE_PATH, { recursive: true });
-
-  const testFile = path.join(BASE_PATH, ".atc-setup-test");
-
-  await fs.writeFile(testFile, "test");
-  await fs.rm(testFile, { force: true });
-
-  console.log(`✅ Permissão de escrita em ${BASE_PATH}.`);
-}
-
 async function checkEnvironment() {
   console.log("\n==============================");
   console.log("VERIFICANDO AMBIENTE");
   console.log("==============================\n");
 
   await loading("Verificando Node.js");
-  await checkNode();
+  console.log(`✅ Node.js encontrado: ${process.version}`);
 
   await loading("Verificando npm");
-  await checkNpm();
+  if (!(await commandExists("npm", ["--version"]))) {
+    throw new Error("npm não encontrado.");
+  }
+  console.log("✅ npm encontrado.");
 
   await loading("Verificando Git");
-  await checkGit();
+  if (!(await commandExists("git", ["--version"]))) {
+    throw new Error("Git não encontrado.");
+  }
+  console.log("✅ Git encontrado.");
 
   await loading("Verificando SSH");
-  await checkSshIfNeeded();
+  const repositoriesData = await readJson(REPOSITORIES_FILE, { repositories: [] });
+  const hasSshRepo = repositoriesData.repositories.some((repo) =>
+    isSshRepository(repo.url)
+  );
 
-  await loading("Verificando permissão de escrita");
-  await checkBasePathPermission();
+  if (hasSshRepo) {
+    if (!(await commandExists("ssh", ["-V"]))) {
+      throw new Error("SSH não encontrado.");
+    }
+    console.log("✅ SSH encontrado.");
+  } else {
+    console.log("ℹ️ Nenhum repositório SSH configurado.");
+  }
+
+  await loading(`Verificando permissão em ${BASE_PATH}`);
+  await fs.mkdir(BASE_PATH, { recursive: true });
+
+  const testFile = path.join(BASE_PATH, ".atc-setup-test");
+  await fs.writeFile(testFile, "test");
+  await fs.rm(testFile, { force: true });
+
+  console.log(`✅ Permissão de escrita em ${BASE_PATH}.`);
 }
 
 /**********************************************************************
@@ -201,8 +169,16 @@ async function createStructure() {
 
   for (const folder of folders) {
     const fullPath = path.join(BASE_PATH, folder);
+
+    await loading(`Verificando pasta ${fullPath}`);
+
+    if (await pathExists(fullPath)) {
+      console.log(`✅ Pasta já existe: ${fullPath}`);
+      continue;
+    }
+
     await fs.mkdir(fullPath, { recursive: true });
-    console.log(`📁 ${fullPath}`);
+    console.log(`📁 Pasta criada: ${fullPath}`);
   }
 }
 
@@ -218,8 +194,10 @@ async function cloneRepository(repo) {
 
   const destination = path.join(BASE_PATH, repo.destination);
 
+  await loading(`Verificando repositório ${repo.name}`);
+
   if (await pathExists(destination)) {
-    console.log(`⚠️ ${repo.name}: já existe.`);
+    console.log(`✅ ${repo.name}: pasta já existe em ${destination}. Pulando clone.`);
     return;
   }
 
@@ -228,7 +206,7 @@ async function cloneRepository(repo) {
   await execa(
     "git",
     ["clone", "--branch", repo.branch, repo.url, destination],
-    { stdio: "inherit" },
+    { stdio: "inherit" }
   );
 
   console.log(`✅ ${repo.name} clonado.`);
@@ -254,8 +232,15 @@ async function applySupportFile(file) {
   const source = path.join(PROJECT_PATH, file.source);
   const destination = path.join(BASE_PATH, file.destination);
 
+  await loading(`Verificando arquivo de suporte ${file.name}`);
+
   if (!(await pathExists(source))) {
-    console.log(`⚠️ ${file.name}: não encontrado.`);
+    console.log(`⚠️ ${file.name}: arquivo de origem não encontrado em ${source}`);
+    return;
+  }
+
+  if (await pathExists(destination)) {
+    console.log(`✅ ${file.name}: já existe no destino ${destination}. Pulando.`);
     return;
   }
 
@@ -263,12 +248,12 @@ async function applySupportFile(file) {
 
   if (file.action === "move") {
     await fs.rename(source, destination);
-    console.log(`📦 Movido ${file.name}`);
+    console.log(`📦 Movido ${file.name} para ${destination}`);
     return;
   }
 
   await fs.copyFile(source, destination);
-  console.log(`📦 Copiado ${file.name}`);
+  console.log(`📦 Copiado ${file.name} para ${destination}`);
 }
 
 async function applySupportFiles() {
@@ -289,13 +274,21 @@ async function applySupportFiles() {
 
 async function installJdk(jdk) {
   if (jdk.enabled === false) {
+    console.log(`⏭️ ${jdk.name}: desabilitado.`);
+    return;
+  }
+
+  await loading(`Verificando instalação do ${jdk.name}`);
+
+  if (await isCheckValid(jdk.check)) {
+    console.log(`✅ ${jdk.name}: já instalado. Pulando instalação.`);
     return;
   }
 
   const jdkPath = path.join(PROJECT_PATH, jdk.path);
 
   if (!(await pathExists(jdkPath))) {
-    console.log(`⚠️ ${jdk.name}: instalador não encontrado.`);
+    console.log(`⚠️ ${jdk.name}: instalador não encontrado em ${jdkPath}`);
     return;
   }
 
@@ -326,13 +319,21 @@ async function installJdks() {
 
 async function runInstaller(installer) {
   if (installer.enabled === false) {
+    console.log(`⏭️ ${installer.name}: desabilitado.`);
+    return;
+  }
+
+  await loading(`Verificando instalação do ${installer.name}`);
+
+  if (await isCheckValid(installer.check)) {
+    console.log(`✅ ${installer.name}: já instalado. Pulando instalação.`);
     return;
   }
 
   const installerPath = path.join(PROJECT_PATH, installer.path);
 
   if (!(await pathExists(installerPath))) {
-    console.log(`⚠️ ${installer.name}: instalador não encontrado.`);
+    console.log(`⚠️ ${installer.name}: instalador não encontrado em ${installerPath}`);
     return;
   }
 
@@ -363,19 +364,22 @@ async function runInstallers() {
 
 async function configureServer(server) {
   if (server.enabled === false) {
+    console.log(`⏭️ ${server.name}: desabilitado.`);
     return;
   }
 
   const zipPath = path.join(PROJECT_PATH, server.file);
   const destination = path.join(BASE_PATH, server.destination);
 
+  await loading(`Verificando servidor ${server.name}`);
+
   if (!(await pathExists(zipPath))) {
-    console.log(`⚠️ ${server.name}: arquivo ZIP não encontrado.`);
+    console.log(`⚠️ ${server.name}: arquivo ZIP não encontrado em ${zipPath}`);
     return;
   }
 
   if (await pathExists(destination)) {
-    console.log(`⚠️ ${server.name}: destino já existe. Pulando extração.`);
+    console.log(`✅ ${server.name}: pasta já existe em ${destination}. Pulando extração.`);
     return;
   }
 
@@ -406,25 +410,12 @@ async function configureServers() {
  **********************************************************************/
 
 async function main() {
-  // Etapa 0
   await checkEnvironment();
-
-  // Etapa 1
   await createStructure();
-
-  // Etapa 2
   await cloneRepositories();
-
-  // Etapa 3
   await applySupportFiles();
-
-  // Etapa 4
   await installJdks();
-
-  // Etapa 5
   await runInstallers();
-
-  // Etapa 6
   await configureServers();
 
   console.log("\n==============================");
